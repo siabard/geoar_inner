@@ -61,7 +61,6 @@ const HelloWorldSceneAR = () => {
   };
 
   const transformGpsToAR = (lat, lng) => {
-
     const isAndroid = Platform.OS === 'android';
     const latObj = lat;
     const longObj = lng;
@@ -97,6 +96,20 @@ const HelloWorldSceneAR = () => {
         lng: 127.024692,
         icon: 'https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker.svg',
       },
+      {
+        id: 2,
+        title: 'fastfive 3rd',
+        lat: 37.4964478,
+        lng: 127.0247811,
+        icon: 'https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker.svg',
+      },
+      {
+        id: 3,
+        title: 'Gangnam',
+        lat: 37.497903,
+        lng: 127.027603,
+        icon: 'https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker.svg',
+      },
     ];
 
     setNearbyPlaces(places);
@@ -120,9 +133,15 @@ const HelloWorldSceneAR = () => {
           key={item.id}
           scale={[scale, scale, scale]}
           rotation={[0, 0, 0]}
-          position={[coords.x , 0, coords.z]}>
+          position={[coords.x, 0, coords.z]}>
           <ViroFlexView
             style={{alignItems: 'center', justifyContent: 'center'}}>
+            <ViroImage
+              width={2}
+              height={2}
+              source={require('./res/marker.png')}
+              position={[0, -1.5, 0]}
+            />
             <ViroText
               width={4}
               height={0.5}
@@ -135,12 +154,6 @@ const HelloWorldSceneAR = () => {
               text={`${Number(distance).toFixed(2)} km`}
               style={styles.helloWorldTextStyle}
               position={[0, -0.75, 0]}
-            />
-            <ViroImage
-              width={1}
-              height={1}
-              source={{uri: item.icon}}
-              position={[0, -1.5, 0]}
             />
           </ViroFlexView>
         </ViroNode>
@@ -204,6 +217,11 @@ const HelloWorldSceneAR = () => {
         setLocation(result.coords);
         getNearbyPlaces();
       };
+
+      if (listener) {
+        Geolocation.clearWatch(listener);
+        setListener(undefined);
+      }
 
       if (!listener) {
         setListener(
