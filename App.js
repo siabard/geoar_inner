@@ -1,4 +1,4 @@
-import React, {Component} from 'react';
+import React, {Component, useEffect, useState} from 'react';
 import {StyleSheet, Platform, ToastAndroid} from 'react-native';
 import {
   ViroImage,
@@ -42,91 +42,16 @@ const distanceBetweenPoints = (p1, p2) => {
   return d;
 };
 
-class HelloWorldSceneAR extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      cameraReady: false,
-      locationReady: false,
-      location: undefined,
-      nearbyPlaces: [],
-      tracking: false,
-      compassHeading: 0,
-    };
-    this._onInitialized = this._onInitialized.bind(this);
-    this.getCurrentLocation = this.getCurrentLocation.bind(this);
-    this.transformGpsToAR = this.transformGpsToAR.bind(this);
-    this.latLongToMerc = this.latLongToMerc.bind(this);
-    this.placeARObjects = this.placeARObjects.bind(this);
-    this.getNearbyPlaces = this.getNearbyPlaces.bind(this);
-    this.listener = undefined;
-  }
+const HelloWorldSceneAR = () => {
+  const [cameraReady, setCameraReady] = useState(false);
+  const [locationReady, setLocationReady] = useState(false);
+  const [location, setLocation] = useState(undefined);
+  const [nearbyPlaces, setNearbyPlaces] = useState([]);
+  const [tracking, setTracking] = useState(false);
+  const [compassHeading, setCompassHeading] = useState(0);
+  const [listener, setListener] = useState(undefined);
 
-  componentDidMount() {
-    const permissions = Platform.select({
-      ios: [PERMISSIONS.IOS.CAMERA, PERMISSIONS.IOS.LOCATION_WHEN_IN_USE],
-      android: [
-        PERMISSIONS.ANDROID.CAMERA,
-        PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
-      ],
-    });
-
-    requestMultiple(permissions).then(statuses => {
-      if (Platform.OS == 'ios') {
-        this.setState(
-          {
-            locationReady:
-              statuses[PERMISSIONS.IOS.LOCATION_WHEN_IN_USE] ===
-              RESULTS.GRANTED,
-            cameraReady: statuses[PERMISSIONS.IOS.CAMERA] === RESULTS.GRANTED,
-          },
-          this.getCurrentLocation,
-        );
-      } else {
-        this.setState(
-          {
-            locationReady:
-              statuses[PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION] ===
-              RESULTS.GRANTED,
-            cameraReady:
-              statuses[PERMISSIONS.ANDROID.CAMERA] === RESULTS.GRANTED,
-          },
-          this.getCurrentLocation,
-        );
-      }
-    });
-
-    CompassHeading.start(3, heading => {
-      this.setState({compassHeading: heading});
-    });
-  }
-
-  componentWillUnmount() {
-    if (this.listener) {
-      Geolocation.clearWatch(this.listener);
-    }
-    CompassHeading.stop();
-  }
-
-  getCurrentLocation = () => {
-    if (this.state.cameraReady && this.state.locationReady) {
-      const geoSuccess = result => {
-        this.setState(
-          {
-            location: result.coords,
-          },
-          this.getNearbyPlaces,
-        );
-      };
-
-      this.listener = Geolocation.watchPosition(geoSuccess, error => {}, {
-        distanceFilter: 10,
-      });
-    }
-  };
-
-  latLongToMerc = (latDeg, longDeg) => {
-    // From: https://gist.github.com/scaraveos/5409402
+  const latLongToMerc = (latDeg, longDeg) => {
     const longRad = (longDeg / 180.0) * Math.PI;
     const latRad = (latDeg / 180.0) * Math.PI;
     const smA = 6378137.0;
@@ -135,22 +60,23 @@ class HelloWorldSceneAR extends Component {
     return {x: xmeters, y: ymeters};
   };
 
-  transformGpsToAR = (lat, lng) => {
+  const transformGpsToAR = (lat, lng) => {
+
     const isAndroid = Platform.OS === 'android';
     const latObj = lat;
     const longObj = lng;
-    const latMobile = this.state.location.latitude;
-    const longMobile = this.state.location.longitude;
+    const latMobile = location.latitude;
+    const longMobile = location.longitude;
 
-    const deviceObjPoint = this.latLongToMerc(latObj, longObj);
-    const mobilePoint = this.latLongToMerc(latMobile, longMobile);
+    const deviceObjPoint = latLongToMerc(latObj, longObj);
+    const mobilePoint = latLongToMerc(latMobile, longMobile);
 
     const objDeltaY = deviceObjPoint.y - mobilePoint.y;
     const objDeltaX = deviceObjPoint.x - mobilePoint.x;
 
     if (isAndroid) {
-      let degree = this.state.compassHeading;
-      let angleRadian = (degree.heading * Math.PI) / 180;
+      let degree = compassHeading.heading;
+      let angleRadian = (degree * Math.PI) / 180;
       let newObjX =
         objDeltaX * Math.cos(angleRadian) - objDeltaY * Math.sin(angleRadian);
       let newObjY =
@@ -162,37 +88,39 @@ class HelloWorldSceneAR extends Component {
     return {x: objDeltaX, z: -objDeltaY};
   };
 
-  getNearbyPlaces = () => {
+  const getNearbyPlaces = () => {
     const places = [
       {
         id: 1,
         title: '강남빌딩',
         lat: 37.49673,
         lng: 127.024692,
-        icon: 'https://t1.daumcdn.net/mapjsapi/images/marker.png',
+        icon: 'https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker.svg',
       },
     ];
 
-    this.setState({nearbyPlaces: places});
+    setNearbyPlaces(places);
   };
 
-  placeARObjects = () => {
-    if (this.state.nearbyPlaces.length == 0) {
+  const placeARObjects = () => {
+    if (nearbyPlaces.length == 0) {
       return undefined;
     }
-    const ARTags = this.state.nearbyPlaces.map(item => {
-      const coords = this.transformGpsToAR(item.lat, item.lng);
+
+    const ARTags = nearbyPlaces.map(item => {
+      const coords = transformGpsToAR(item.lat, item.lng);
       const scale = Math.abs(Math.round(coords.z / 15));
-      const distance = distanceBetweenPoints(this.state.location, {
+      const distance = distanceBetweenPoints(location, {
         latitude: item.lat,
         longitude: item.lng,
       });
+
       return (
         <ViroNode
           key={item.id}
           scale={[scale, scale, scale]}
           rotation={[0, 0, 0]}
-          position={[coords.x, 0, coords.z]}>
+          position={[coords.x , 0, coords.z]}>
           <ViroFlexView
             style={{alignItems: 'center', justifyContent: 'center'}}>
             <ViroText
@@ -218,38 +146,83 @@ class HelloWorldSceneAR extends Component {
         </ViroNode>
       );
     });
+
     return ARTags;
   };
 
-  render() {
-    return (
-      <ViroARScene onTrackingUpdated={this._onInitialized}>
-        {this.state.locationReady &&
-          this.state.cameraReady &&
-          this.placeARObjects()}
-      </ViroARScene>
-    );
-  }
+  const onInitialized = (state, reason) => {
+    const tracking =
+      state == ViroTrackingStateConstants.TRACKING_NORMAL ||
+      state == ViroTrackingStateConstants.TRACKING_LIMITED;
+    setTracking(tracking);
+    if (tracking) {
+      Toast('All set!');
+    }
+  };
 
-  _onInitialized(state, reason) {
-    this.setState(
-      {
-        tracking:
-          state == ViroTrackingStateConstants.TRACKING_NORMAL ||
-          state == ViroTrackingStateConstants.TRACKING_LIMITED,
-      },
-      () => {
-        if (this.state.tracking) {
-          Toast('All set!');
-        } else {
-          //Toast(`Move your device around gently to calibrate AR (${reason}) and compass.`);
-        }
-      },
-    );
-  }
-}
+  useEffect(() => {
+    const permissions = Platform.select({
+      ios: [PERMISSIONS.IOS.CAMERA, PERMISSIONS.IOS.LOCATION_WHEN_IN_USE],
+      android: [
+        PERMISSIONS.ANDROID.CAMERA,
+        PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+      ],
+    });
 
-var styles = StyleSheet.create({
+    requestMultiple(permissions).then(statuses => {
+      if (Platform.OS == 'ios') {
+        setLocationReady(
+          statuses[PERMISSIONS.IOS.LOCATION_WHEN_IN_USE] === RESULTS.GRANTED,
+        );
+        setCameraReady(statuses[PERMISSIONS.IOS.CAMERA] === RESULTS.GRANTED);
+      } else {
+        setLocationReady(
+          statuses[PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION] ===
+            RESULTS.GRANTED,
+        );
+        setCameraReady(
+          statuses[PERMISSIONS.ANDROID.CAMERA] === RESULTS.GRANTED,
+        );
+      }
+    });
+
+    CompassHeading.start(3, heading => {
+      setCompassHeading(heading);
+    });
+
+    return () => {
+      if (listener) {
+        Geolocation.clearWatch(listener);
+      }
+      CompassHeading.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (cameraReady && locationReady) {
+      const geoSuccess = result => {
+        setLocation(result.coords);
+        getNearbyPlaces();
+      };
+
+      if (!listener) {
+        setListener(
+          Geolocation.watchPosition(geoSuccess, error => {}, {
+            distanceFilter: 10,
+          }),
+        );
+      }
+    }
+  }, [cameraReady, locationReady]);
+
+  return (
+    <ViroARScene onTrackingUpdated={onInitialized}>
+      {locationReady && cameraReady && placeARObjects()}
+    </ViroARScene>
+  );
+};
+
+const styles = StyleSheet.create({
   helloWorldTextStyle: {
     fontFamily: 'Arial',
     fontSize: 30,
@@ -259,17 +232,17 @@ var styles = StyleSheet.create({
   },
 });
 
-export default class App extends React.Component {
-  render() {
-    return (
-      <ViroARSceneNavigator
-        worldAlignment={'GravityAndHeading'}
-        autofocus={true}
-        initialScene={{
-          scene: HelloWorldSceneAR,
-        }}
-        style={{flex: 1}}
-      />
-    );
-  }
-}
+const App = () => {
+  return (
+    <ViroARSceneNavigator
+      worldAlignment={'GravityAndHeading'}
+      autofocus={true}
+      initialScene={{
+        scene: HelloWorldSceneAR,
+      }}
+      style={{flex: 1}}
+    />
+  );
+};
+
+export default App;
